@@ -50,15 +50,15 @@ function OrdersPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (form.total_price === "" || form.cost === "") return toast.error("اكتب السعر والتكلفة");
+    if (form.total_price === "" || form.cost === "") { toast.error("اكتب السعر والتكلفة"); return; }
     const p = schema.safeParse(form);
-    if (!p.success) return toast.error(p.error.issues[0].message);
+    if (!p.success) { toast.error(p.error.issues[0]?.message ?? "بيانات غير صحيحة"); return; }
     setBusy(true);
     const { error } = editId
       ? await supabase.from("orders").update(p.data).eq("id", editId)
       : await supabase.from("orders").insert(p.data);
     setBusy(false);
-    if (error) return toast.error("ماقدرناش نحفظ الطلب، حاول تاني");
+    if (error) { toast.error("ماقدرناش نحفظ الطلب، حاول تاني"); return; }
     toast.success(editId ? "تم تعديل الطلب" : "تم حفظ الطلب");
     setForm(empty());
     setEditId(null);
@@ -74,7 +74,7 @@ function OrdersPage() {
   async function remove(o: Order) {
     if (!confirm(`حذف الطلب ${o.order_number}؟`)) return;
     const { error } = await supabase.from("orders").delete().eq("id", o.id);
-    if (error) return toast.error("ماقدرناش نحذف الطلب");
+    if (error) { toast.error("ماقدرناش نحذف الطلب"); return; }
     toast.success("تم حذف الطلب");
     refresh();
   }

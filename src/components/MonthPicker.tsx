@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMonth, ymLabel } from "@/lib/pl";
 
 function shift(ym: string, d: number) {
-  const [y, m] = ym.split("-").map(Number);
+  const [y = 2026, m = 1] = ym.split("-").map(Number);
   const t = y * 12 + (m - 1) + d;
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
 }

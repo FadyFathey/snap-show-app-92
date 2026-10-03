@@ -34,12 +34,12 @@ export const today = () => {
 export const currentYm = () => today().slice(0, 7);
 
 export function monthRange(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
+  const [y = 2026, m = 1] = ym.split("-").map(Number);
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
   return [`${ym}-01`, `${next}-01`] as const;
 }
 export const ymLabel = (ym: string) => {
-  const [y, m] = ym.split("-").map(Number);
+  const [y = 2026, m = 1] = ym.split("-").map(Number);
   return `${MONTHS[m - 1]} ${y}`;
 };
 

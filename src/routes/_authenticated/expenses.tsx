@@ -50,16 +50,16 @@ function ExpensesPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (form.amount === "") return toast.error("اكتب المبلغ");
+    if (form.amount === "") { toast.error("اكتب المبلغ"); return; }
     const p = schema.safeParse(form);
-    if (!p.success) return toast.error(p.error.issues[0].message);
+    if (!p.success) { toast.error(p.error.issues[0]?.message ?? "بيانات غير صحيحة"); return; }
     const row = { ...p.data, notes: p.data.notes || null };
     setBusy(true);
     const { error } = editId
       ? await supabase.from("expenses").update(row).eq("id", editId)
       : await supabase.from("expenses").insert(row);
     setBusy(false);
-    if (error) return toast.error("ماقدرناش نحفظ المصروف، حاول تاني");
+    if (error) { toast.error("ماقدرناش نحفظ المصروف، حاول تاني"); return; }
     toast.success(editId ? "تم تعديل المصروف" : "تم حفظ المصروف");
     setForm(empty());
     setEditId(null);
@@ -75,7 +75,7 @@ function ExpensesPage() {
   async function remove(x: Expense) {
     if (!confirm("حذف المصروف ده؟")) return;
     const { error } = await supabase.from("expenses").delete().eq("id", x.id);
-    if (error) return toast.error("ماقدرناش نحذف المصروف");
+    if (error) { toast.error("ماقدرناش نحذف المصروف"); return; }
     toast.success("تم حذف المصروف");
     refresh();
   }
