@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { BarChart3, LayoutDashboard, LogOut, Receipt, ShoppingBag } from "lucide-react";
+import { BarChart3, LayoutDashboard, LogOut, Receipt, ShoppingBag, Store, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthCtx, currentYm } from "@/lib/pl";
 
@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated")({
 const tabs = [
   { to: "/", label: "الرئيسية", icon: LayoutDashboard },
   { to: "/orders", label: "الطلبات", icon: ShoppingBag },
+  { to: "/returns", label: "المرتجعات", icon: Undo2 },
   { to: "/expenses", label: "المصاريف", icon: Receipt },
   { to: "/summary", label: "الملخص", icon: BarChart3 },
 ] as const;
@@ -39,14 +40,19 @@ function AppShell() {
       <div className="mx-auto min-h-screen max-w-2xl pb-24">
         <header className="flex items-center justify-between px-5 pb-2 pt-5">
           <span className="text-lg font-bold">حسابات المتجر</span>
-          <button onClick={signOut} className="flex items-center gap-1 text-sm text-muted-foreground" aria-label="خروج">
-            <LogOut className="h-4 w-4" /> خروج
-          </button>
+          <div className="flex items-center gap-4">
+            <Link to="/shopify" className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Store className="h-4 w-4" /> ربط شوبيفاي
+            </Link>
+            <button onClick={signOut} className="flex items-center gap-1 text-sm text-muted-foreground" aria-label="خروج">
+              <LogOut className="h-4 w-4" /> خروج
+            </button>
+          </div>
         </header>
         <Outlet />
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 backdrop-blur">
-        <div className="mx-auto grid max-w-2xl grid-cols-4">
+        <div className="mx-auto grid max-w-2xl grid-cols-5">
           {tabs.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
