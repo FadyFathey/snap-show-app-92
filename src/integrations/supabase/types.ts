@@ -47,39 +47,110 @@ export type Database = {
       orders: {
         Row: {
           cost: number
+          cost_missing: boolean
           created_at: string
           id: string
           order_date: string
           order_number: string
+          shopify_order_id: string | null
+          source: string
+          status: string
           total_price: number
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           cost?: number
+          cost_missing?: boolean
           created_at?: string
           id?: string
           order_date?: string
           order_number: string
+          shopify_order_id?: string | null
+          source?: string
+          status?: string
           total_price?: number
-          user_id?: string
+          user_id?: string | null
         }
         Update: {
           cost?: number
+          cost_missing?: boolean
           created_at?: string
           id?: string
           order_date?: string
           order_number?: string
+          shopify_order_id?: string | null
+          source?: string
+          status?: string
           total_price?: number
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
+      }
+      returns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          order_id: string
+          product_loss: number
+          reason: string
+          restocked: boolean
+          return_date: string
+          shipping_loss: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id: string
+          product_loss?: number
+          reason: string
+          restocked?: boolean
+          return_date?: string
+          shipping_loss?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string
+          product_loss?: number
+          reason?: string
+          restocked?: boolean
+          return_date?: string
+          shipping_loss?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mark_returned: {
+        Args: {
+          _notes: string
+          _order_id: string
+          _product_loss: number
+          _reason: string
+          _restocked: boolean
+          _return_date: string
+          _shipping_loss: number
+        }
+        Returns: undefined
+      }
+      undo_return: { Args: { _order_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

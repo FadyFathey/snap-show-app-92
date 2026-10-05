@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MonthPicker } from "@/components/MonthPicker";
-import { fmt, fmtNum, stats, useExpenses, useMonth, useOrders, useYear, yearly } from "@/lib/pl";
+import { fmt, fmtNum, stats, useExpenses, useMonth, useOrders, useReturns, useYear, yearly } from "@/lib/pl";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -21,10 +21,11 @@ function Dashboard() {
   const { ym } = useMonth();
   const orders = useOrders(ym);
   const expenses = useExpenses(ym);
+  const returns = useReturns(ym);
   const year = useYear(Number(ym.slice(0, 4)));
-  const s = stats(orders.data ?? [], expenses.data ?? []);
+  const s = stats(orders.data ?? [], expenses.data ?? [], returns.data ?? []);
   const win = s.net >= 0;
-  const chart = yearly(year.data?.orders ?? [], year.data?.expenses ?? []);
+  const chart = yearly(year.data?.orders ?? [], year.data?.expenses ?? [], year.data?.returns ?? []);
 
   return (
     <div className="space-y-4 px-5">
@@ -39,15 +40,26 @@ function Dashboard() {
         <div className="mt-1 text-sm opacity-90">مجمل الربح: <span className="num">{fmt(s.gross)}</span></div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Stat label="إجمالي المبيعات" value={fmt(s.sales)} />
         <Stat label="إجمالي التكلفة" value={fmt(s.cost)} />
         <Stat label="إجمالي المصاريف" value={fmt(s.expenses)} />
+        <Stat label="خسائر المرتجعات" value={fmt(s.returnLoss)} />
+      </div>
+
+      <div className="flex items-center justify-between rounded-2xl bg-warn-soft px-4 py-3">
+        <div>
+          <div className="text-xs text-muted-foreground">أوردرات مستنية (مش داخلة في الربح)</div>
+          <div className="font-bold num">{fmt(s.pendingValue)}</div>
+        </div>
+        <span className="text-2xl font-extrabold text-warn num">{fmtNum(s.pendingCount)}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="عدد الطلبات" value={fmtNum(s.count)} />
+        <Stat label="عدد الطلبات اللي طلعت" value={fmtNum(s.count)} />
         <Stat label="متوسط الربح للطلب" value={fmt(s.count ? s.net / s.count : 0)} />
+        <Stat label="عدد المرتجعات" value={fmtNum(s.returnsCount)} />
+        <Stat label="نسبة المرتجع" value={`${fmtNum(Math.round(s.returnRate * 10) / 10)}%`} />
       </div>
 
       <div className="rounded-2xl border bg-card p-4">

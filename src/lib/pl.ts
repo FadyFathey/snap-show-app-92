@@ -2,12 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+export type OrderStatus = "new" | "shipped" | "returned" | "cancelled";
+export const STATUS_LABEL: Record<OrderStatus, string> = {
+  new: "جديد", shipped: "طلع", returned: "مرتجع", cancelled: "ملغي",
+};
 export type Order = {
   id: string;
   order_date: string;
   order_number: string;
   total_price: number;
   cost: number;
+  status: OrderStatus;
+  source: string;
+  cost_missing: boolean;
+  created_at: string;
 };
 export type Expense = {
   id: string;
@@ -16,6 +24,19 @@ export type Expense = {
   amount: number;
   notes: string | null;
 };
+export type Return = {
+  id: string;
+  order_id: string;
+  return_date: string;
+  reason: string;
+  notes: string | null;
+  shipping_loss: number;
+  product_loss: number;
+  restocked: boolean;
+  order_number: string;
+  order_date: string;
+};
+export const RETURN_REASONS = ["العميل رفض الاستلام", "منتج معيب", "مقاس/لون غلط", "العميل غير متاح", "أخرى"];
 
 export const CATEGORIES = ["إعلانات", "شحن", "إيجار", "مرتبات", "اشتراكات", "أخرى"];
 export const MONTHS = [
@@ -52,13 +73,13 @@ export const useMonth = () => useContext(MonthCtx);
 async function fetchOrders(from: string, to: string): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
-    .select("id, order_date, order_number, total_price, cost")
+    .select("id, order_date, order_number, total_price, cost, status, source, cost_missing, created_at")
     .gte("order_date", from)
     .lt("order_date", to)
     .order("order_date", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((o) => ({ ...o, total_price: Number(o.total_price), cost: Number(o.cost) }));
+  return (data ?? []).map((o) => ({ ...o, status: o.status as OrderStatus, total_price: Number(o.total_price), cost: Number(o.cost) }));
 }
 async function fetchExpenses(from: string, to: string): Promise<Expense[]> {
   const { data, error } = await supabase
@@ -71,21 +92,38 @@ async function fetchExpenses(from: string, to: string): Promise<Expense[]> {
   if (error) throw error;
   return (data ?? []).map((e) => ({ ...e, amount: Number(e.amount) }));
 }
+async function fetchReturns(from: string, to: string): Promise<Return[]> {
+  const { data, error } = await supabase
+    .from("returns")
+    .select("id, order_id, return_date, reason, notes, shipping_loss, product_loss, restocked, orders(order_number, order_date)")
+    .gte("return_date", from)
+    .lt("return_date", to)
+    .order("return_date", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const o = r.orders as { order_number: string; order_date: string } | null;
+    return {
+      id: r.id, order_id: r.order_id, return_date: r.return_date, reason: r.reason, notes: r.notes, restocked: r.restocked,
+      shipping_loss: Number(r.shipping_loss), product_loss: Number(r.product_loss),
+      order_number: o?.order_number ?? "", order_date: o?.order_date ?? "",
+    };
+  });
+}
 
 export const useOrders = (ym: string) =>
   useQuery({ queryKey: ["orders", ym], queryFn: () => fetchOrders(...monthRange(ym)) });
 export const useExpenses = (ym: string) =>
   useQuery({ queryKey: ["expenses", ym], queryFn: () => fetchExpenses(...monthRange(ym)) });
+export const useReturns = (ym: string) =>
+  useQuery({ queryKey: ["returns", ym], queryFn: () => fetchReturns(...monthRange(ym)) });
 
 export const useYear = (year: number) =>
   useQuery({
     queryKey: ["year", year],
     queryFn: async () => {
-      const [orders, expenses] = await Promise.all([
-        fetchOrders(`${year}-01-01`, `${year + 1}-01-01`),
-        fetchExpenses(`${year}-01-01`, `${year + 1}-01-01`),
-      ]);
-      return { orders, expenses };
+      const r = [`${year}-01-01`, `${year + 1}-01-01`] as const;
+      const [orders, expenses, returns] = await Promise.all([fetchOrders(...r), fetchExpenses(...r), fetchReturns(...r)]);
+      return { orders, expenses, returns };
     },
   });
 
@@ -95,16 +133,34 @@ export type MonthStats = {
   cost: number;
   gross: number;
   expenses: number;
+  returnLoss: number;
+  returnsCount: number;
+  returnRate: number;
+  pendingCount: number;
+  pendingValue: number;
   net: number;
 };
-export function stats(orders: Order[], expenses: Expense[]): MonthStats {
-  const sales = orders.reduce((s, o) => s + o.total_price, 0);
-  const cost = orders.reduce((s, o) => s + o.cost, 0);
+/** Only shipped orders count. Return losses count in the month of the return date. */
+export function stats(orders: Order[], expenses: Expense[], returns: Return[] = []): MonthStats {
+  const shipped = orders.filter((o) => o.status === "shipped");
+  const pending = orders.filter((o) => o.status === "new");
+  const returnedOrders = orders.filter((o) => o.status === "returned").length;
+  const sales = shipped.reduce((s, o) => s + o.total_price, 0);
+  const cost = shipped.reduce((s, o) => s + o.cost, 0);
   const exp = expenses.reduce((s, e) => s + e.amount, 0);
+  const returnLoss = returns.reduce((s, r) => s + r.shipping_loss + r.product_loss, 0);
   const gross = sales - cost;
-  return { count: orders.length, sales, cost, gross, expenses: exp, net: gross - exp };
+  const denom = shipped.length + returnedOrders;
+  return {
+    count: shipped.length, sales, cost, gross, expenses: exp, returnLoss,
+    returnsCount: returns.length,
+    returnRate: denom ? (returnedOrders / denom) * 100 : 0,
+    pendingCount: pending.length,
+    pendingValue: pending.reduce((s, o) => s + o.total_price, 0),
+    net: gross - exp - returnLoss,
+  };
 }
-export function yearly(orders: Order[], expenses: Expense[]) {
+export function yearly(orders: Order[], expenses: Expense[], returns: Return[] = []) {
   return MONTHS.map((name, i) => {
     const mm = String(i + 1).padStart(2, "0");
     return {
@@ -112,6 +168,7 @@ export function yearly(orders: Order[], expenses: Expense[]) {
       ...stats(
         orders.filter((o) => o.order_date.slice(5, 7) === mm),
         expenses.filter((e) => e.expense_date.slice(5, 7) === mm),
+        returns.filter((r) => r.return_date.slice(5, 7) === mm),
       ),
     };
   });

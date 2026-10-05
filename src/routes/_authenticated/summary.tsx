@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YearPicker } from "@/components/MonthPicker";
-import { fmtNum, stats, useMonth, useYear, yearly } from "@/lib/pl";
+import { STATUS_LABEL, fmtNum, stats, useMonth, useYear, yearly } from "@/lib/pl";
 
 export const Route = createFileRoute("/_authenticated/summary")({
   head: () => ({
@@ -25,29 +25,34 @@ function SummaryPage() {
   const { ym } = useMonth();
   const year = Number(ym.slice(0, 4));
   const { data, isLoading } = useYear(year);
-  const rows = yearly(data?.orders ?? [], data?.expenses ?? []);
-  const total = stats(data?.orders ?? [], data?.expenses ?? []);
+  const rows = yearly(data?.orders ?? [], data?.expenses ?? [], data?.returns ?? []);
+  const total = stats(data?.orders ?? [], data?.expenses ?? [], data?.returns ?? []);
 
   async function exportXlsx() {
     if (!data) return;
     try {
       const XLSX = await import("xlsx");
-      const head = ["الشهر", "عدد الطلبات", "المبيعات", "التكلفة", "مجمل الربح", "المصاريف", "صافي الربح", "النتيجة"];
-      const line = (n: string, r: typeof total) => [n, r.count, r.sales, r.cost, r.gross, r.expenses, r.net, result(r.net)];
+      const head = ["الشهر", "عدد الطلبات", "المبيعات", "التكلفة", "مجمل الربح", "المصاريف", "عدد المرتجعات", "خسائر المرتجعات", "صافي الربح", "النتيجة"];
+      const line = (n: string, r: typeof total) => [n, r.count, r.sales, r.cost, r.gross, r.expenses, r.returnsCount, r.returnLoss, r.net, result(r.net)];
       const s1 = XLSX.utils.aoa_to_sheet([head, ...rows.map((r) => line(r.name, r)), line("الإجمالي", total)]);
       const s2 = XLSX.utils.aoa_to_sheet([
-        ["التاريخ", "رقم الطلب", "إجمالي السعر", "التكلفة", "الربح"],
-        ...data.orders.map((o) => [o.order_date, o.order_number, o.total_price, o.cost, o.total_price - o.cost]),
+        ["التاريخ", "رقم الطلب", "الحالة", "إجمالي السعر", "التكلفة", "الربح"],
+        ...data.orders.map((o) => [o.order_date, o.order_number, STATUS_LABEL[o.status], o.total_price, o.cost, o.total_price - o.cost]),
       ]);
       const s3 = XLSX.utils.aoa_to_sheet([
         ["التاريخ", "البند", "المبلغ", "ملاحظات"],
         ...data.expenses.map((e) => [e.expense_date, e.category, e.amount, e.notes ?? ""]),
+      ]);
+      const s4 = XLSX.utils.aoa_to_sheet([
+        ["رقم الطلب", "تاريخ الطلب", "تاريخ المرتجع", "السبب", "خسارة الشحن", "خسارة المنتج", "إجمالي الخسارة"],
+        ...data.returns.map((r) => [r.order_number, r.order_date, r.return_date, r.reason, r.shipping_loss, r.product_loss, r.shipping_loss + r.product_loss]),
       ]);
       const wb = XLSX.utils.book_new();
       wb.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(wb, s1, "الملخص");
       XLSX.utils.book_append_sheet(wb, s2, "الطلبات");
       XLSX.utils.book_append_sheet(wb, s3, "المصاريف");
+      XLSX.utils.book_append_sheet(wb, s4, "المرتجعات");
       XLSX.writeFile(wb, `حسابات-${year}.xlsx`);
       toast.success("تم تنزيل الملف");
     } catch {
@@ -55,7 +60,7 @@ function SummaryPage() {
     }
   }
 
-  const cols = ["الشهر", "الطلبات", "المبيعات", "التكلفة", "مجمل الربح", "المصاريف", "صافي الربح", "النتيجة"];
+  const cols = ["الشهر", "الطلبات", "المبيعات", "التكلفة", "مجمل الربح", "المصاريف", "عدد المرتجعات", "خسائر المرتجعات", "صافي الربح", "النتيجة"];
 
   return (
     <div className="space-y-4 px-5">
@@ -64,13 +69,13 @@ function SummaryPage() {
         <Download className="h-5 w-5" /> تصدير Excel
       </Button>
       <div className="overflow-x-auto rounded-2xl border bg-card">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>{cols.map((c) => <th key={c} className="px-3 py-3 text-right font-semibold">{c}</th>)}</tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">جاري التحميل…</td></tr>
+              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">جاري التحميل…</td></tr>
             ) : (
               rows.map((r) => <Row key={r.name} name={r.name} r={r} />)
             )}
@@ -94,6 +99,8 @@ function Row({ name, r }: { name: string; r: ReturnType<typeof stats> }) {
       <td className="px-3 num">{fmtNum(r.cost)}</td>
       <td className="px-3 num">{fmtNum(r.gross)}</td>
       <td className="px-3 num">{fmtNum(r.expenses)}</td>
+      <td className="px-3 num">{fmtNum(r.returnsCount)}</td>
+      <td className="px-3 num text-loss">{fmtNum(r.returnLoss)}</td>
       <td className={`px-3 font-bold num ${win ? "text-profit" : "text-loss"}`}>{fmtNum(r.net)}</td>
       <td className="px-3">
         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${win ? "bg-profit-soft text-profit" : "bg-loss-soft text-loss"}`}>{result(r.net)}</span>
