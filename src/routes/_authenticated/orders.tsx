@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MonthPicker } from "@/components/MonthPicker";
-import { type Order, fmt, today, useMonth, useOrders } from "@/lib/pl";
+import { ReturnSheet } from "@/components/ReturnSheet";
+import { type Order, type OrderStatus, STATUS_LABEL, fmt, today, useMonth, useOrders } from "@/lib/pl";
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({
@@ -42,9 +43,13 @@ function OrdersPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<OrderStatus | "all">("all");
+  const [returning, setReturning] = useState<Order | null>(null);
+  const [costDraft, setCostDraft] = useState<Record<string, string>>({});
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["orders"] });
+    qc.invalidateQueries({ queryKey: ["returns"] });
     qc.invalidateQueries({ queryKey: ["year"] });
   };
 
@@ -79,10 +84,35 @@ function OrdersPage() {
     refresh();
   }
 
-  const list = data.filter((o) => o.order_number.toLowerCase().includes(q.trim().toLowerCase()));
+  async function setStatus(o: Order, status: OrderStatus) {
+    if (status === "cancelled" && !confirm(`إلغاء الطلب ${o.order_number}؟`)) return;
+    const { error } = await supabase.from("orders").update({ status }).eq("id", o.id);
+    if (error) { toast.error("ماقدرناش نغيّر الحالة"); return; }
+    toast.success(`الطلب ${o.order_number}: ${STATUS_LABEL[status]}`);
+    refresh();
+  }
+
+  async function saveCost(o: Order) {
+    const v = Number(costDraft[o.id]);
+    if (costDraft[o.id] === undefined || costDraft[o.id] === "" || !(v >= 0)) { toast.error("اكتب تكلفة صحيحة"); return; }
+    const { error } = await supabase.from("orders").update({ cost: v, cost_missing: false }).eq("id", o.id);
+    if (error) { toast.error("ماقدرناش نحفظ التكلفة"); return; }
+    toast.success("تم حفظ التكلفة");
+    refresh();
+  }
+
+  const waiting = data.filter((o) => o.status === "new").length;
+  const list = data.filter(
+    (o) => (filter === "all" || o.status === filter) && o.order_number.toLowerCase().includes(q.trim().toLowerCase()),
+  );
 
   return (
     <div className="space-y-4 px-5">
+      <div className="flex items-center justify-between rounded-2xl bg-warn-soft px-4 py-3">
+        <span className="font-semibold">أوردرات مستنية</span>
+        <span className="text-2xl font-extrabold text-warn num">{waiting}</span>
+      </div>
+
       <form onSubmit={save} className="space-y-3 rounded-2xl border bg-card p-4">
         <h2 className="font-bold">{editId ? "تعديل طلب" : "إضافة طلب"}</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -104,32 +134,71 @@ function OrdersPage() {
         <Input placeholder="ابحث برقم الطلب" value={q} onChange={(e) => setQ(e.target.value)} className="h-11 pr-10" />
       </div>
 
+      <div className="flex gap-2 overflow-x-auto">
+        {(["all", "new", "shipped", "returned", "cancelled"] as const).map((s) => (
+          <button key={s} onClick={() => setFilter(s)}
+            className={`shrink-0 rounded-full border px-4 py-1.5 text-sm ${filter === s ? "bg-primary text-primary-foreground" : "bg-card"}`}>
+            {s === "all" ? "الكل" : STATUS_LABEL[s]}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-2">
         {isLoading && <p className="text-center text-sm text-muted-foreground">جاري التحميل…</p>}
-        {!isLoading && list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">مفيش طلبات في الشهر ده</p>}
+        {!isLoading && list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">مفيش طلبات</p>}
         {list.map((o) => {
           const profit = o.total_price - o.cost;
           return (
-            <div key={o.id} className="flex items-center gap-3 rounded-2xl border bg-card p-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold num">{o.order_number}</span>
-                  <span className="text-xs text-muted-foreground num">{o.order_date}</span>
+            <div key={o.id} className="space-y-3 rounded-2xl border bg-card p-3">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold num">{o.order_number}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
+                    {o.source === "shopify" && <span className="rounded-full bg-muted px-2 py-0.5 text-xs">شوبيفاي</span>}
+                    <span className="text-xs text-muted-foreground num">{o.order_date}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    السعر <span className="num">{fmt(o.total_price)}</span> · التكلفة <span className="num">{fmt(o.cost)}</span>
+                  </div>
                 </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  السعر <span className="num">{fmt(o.total_price)}</span> · التكلفة <span className="num">{fmt(o.cost)}</span>
-                </div>
+                <div className={`text-sm font-bold num ${profit >= 0 ? "text-profit" : "text-loss"}`}>{fmt(profit)}</div>
+                <button onClick={() => edit(o)} className="rounded-lg p-2 hover:bg-muted" aria-label="تعديل"><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => remove(o)} className="rounded-lg p-2 text-loss hover:bg-loss-soft" aria-label="حذف"><Trash2 className="h-4 w-4" /></button>
               </div>
-              <div className={`text-sm font-bold num ${profit >= 0 ? "text-profit" : "text-loss"}`}>{fmt(profit)}</div>
-              <button onClick={() => edit(o)} className="rounded-lg p-2 hover:bg-muted" aria-label="تعديل"><Pencil className="h-4 w-4" /></button>
-              <button onClick={() => remove(o)} className="rounded-lg p-2 text-loss hover:bg-loss-soft" aria-label="حذف"><Trash2 className="h-4 w-4" /></button>
+              {o.cost_missing && (
+                <div className="flex items-center gap-2 rounded-xl bg-warn-soft p-2">
+                  <span className="shrink-0 rounded-full bg-warn px-2 py-0.5 text-xs font-bold text-warn-foreground">التكلفة ناقصة</span>
+                  <Input type="number" inputMode="decimal" min={0} step="any" placeholder="التكلفة" className="h-9"
+                    value={costDraft[o.id] ?? ""} onChange={(e) => setCostDraft({ ...costDraft, [o.id]: e.target.value })} />
+                  <Button size="sm" onClick={() => saveCost(o)}>حفظ</Button>
+                </div>
+              )}
+              {o.status === "new" && (
+                <div className="grid grid-cols-3 gap-2">
+                  <Button className="h-11 bg-profit text-profit-foreground hover:bg-profit/90" onClick={() => setStatus(o, "shipped")}>طلع</Button>
+                  <Button className="h-11 bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => setReturning(o)}>مرتجع</Button>
+                  <Button className="h-11 bg-loss text-loss-foreground hover:bg-loss/90" onClick={() => setStatus(o, "cancelled")}>ملغي</Button>
+                </div>
+              )}
+              {o.status === "shipped" && (
+                <Button className="h-11 w-full bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => setReturning(o)}>مرتجع</Button>
+              )}
             </div>
           );
         })}
       </div>
+      <ReturnSheet order={returning} onClose={() => setReturning(null)} onDone={refresh} />
     </div>
   );
 }
+
+const BADGE: Record<OrderStatus, string> = {
+  new: "bg-warn-soft text-warn",
+  shipped: "bg-profit-soft text-profit",
+  returned: "bg-loss-soft text-loss",
+  cancelled: "bg-muted text-muted-foreground",
+};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1"><Label className="text-xs">{label}</Label>{children}</div>;

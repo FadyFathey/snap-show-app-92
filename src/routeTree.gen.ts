@@ -15,6 +15,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
+import { Route as ApiPublicShopifyWebhookRouteImport } from './routes/api/public/shopify-webhook'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -45,6 +46,11 @@ const AuthenticatedSummaryRoute = AuthenticatedSummaryRouteImport.update({
   path: '/summary',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicShopifyWebhookRoute = ApiPublicShopifyWebhookRouteImport.update({
+  id: '/api/public/shopify-webhook',
+  path: '/api/public/shopify-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/expenses': typeof AuthenticatedExpensesRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/summary': typeof AuthenticatedSummaryRoute
+  '/api/public/shopify-webhook': typeof ApiPublicShopifyWebhookRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/orders': typeof AuthenticatedOrdersRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/': typeof AuthenticatedIndexRoute
+  '/api/public/shopify-webhook': typeof ApiPublicShopifyWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +76,25 @@ export interface FileRoutesById {
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/api/public/shopify-webhook': typeof ApiPublicShopifyWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/expenses' | '/orders' | '/summary'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/expenses'
+    | '/orders'
+    | '/summary'
+    | '/api/public/shopify-webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/expenses' | '/orders' | '/summary' | '/'
+  to:
+    | '/auth'
+    | '/expenses'
+    | '/orders'
+    | '/summary'
+    | '/'
+    | '/api/public/shopify-webhook'
   id:
     | '__root__'
     | '/_authenticated'
@@ -82,11 +103,13 @@ export interface FileRouteTypes {
     | '/_authenticated/orders'
     | '/_authenticated/summary'
     | '/_authenticated/'
+    | '/api/public/shopify-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicShopifyWebhookRoute: typeof ApiPublicShopifyWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -133,6 +156,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSummaryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/shopify-webhook': {
+      id: '/api/public/shopify-webhook'
+      path: '/api/public/shopify-webhook'
+      fullPath: '/api/public/shopify-webhook'
+      preLoaderRoute: typeof ApiPublicShopifyWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,6 +186,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicShopifyWebhookRoute: ApiPublicShopifyWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -34,6 +34,9 @@
   --color-loss: var(--loss);
   --color-loss-foreground: var(--loss-foreground);
   --color-loss-soft: var(--loss-soft);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-warn-soft: var(--warn-soft);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -77,6 +80,9 @@
   --loss: oklch(0.57 0.2 27);
   --loss-foreground: oklch(0.98 0.01 27);
   --loss-soft: oklch(0.95 0.035 27);
+  --warn: oklch(0.68 0.16 55);
+  --warn-foreground: oklch(0.99 0.01 55);
+  --warn-soft: oklch(0.95 0.05 70);
   --border: oklch(0.9 0.01 85);
   --input: oklch(0.88 0.01 85);
   --ring: oklch(0.32 0.04 200);
