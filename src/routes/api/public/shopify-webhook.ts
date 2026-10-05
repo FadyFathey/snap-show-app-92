@@ -15,7 +15,7 @@ const OrderPayload = z.object({
 
 const API = "2024-10";
 
-async function computeCost(items: { variant_id?: number | string | null; quantity: number }[]) {
+async function computeCost(items: { variant_id?: number | string | null | undefined; quantity: number }[]) {
   const domain = process.env["SHOPIFY_STORE_DOMAIN"];
   const token = process.env["SHOPIFY_ADMIN_TOKEN"];
   if (!domain || !token || items.length === 0) return { cost: 0, missing: true };
