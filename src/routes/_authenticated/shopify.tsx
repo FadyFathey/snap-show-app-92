@@ -23,10 +23,7 @@ export const Route = createFileRoute("/_authenticated/shopify")({
 function ShopifyPage() {
   const [url, setUrl] = useState("");
   useEffect(() => {
-    const host = window.location.host;
-    const m = host.match(/([0-9a-f-]{36})/);
-    const base = m ? `https://project--${m[1]}.lovable.app` : window.location.origin;
-    setUrl(`${base}/api/public/shopify-webhook`);
+    setUrl(`${window.location.origin}/api/public/shopify-webhook`);
   }, []);
   const last = useQuery({
     queryKey: ["shopify-last"],
@@ -37,13 +34,14 @@ function ShopifyPage() {
   });
 
   const steps = [
-    "من لوحة تحكم شوبيفاي ادخل الإعدادات ← التطبيقات والقنوات ← تطوير التطبيقات، واعمل تطبيق مخصص جديد.",
-    "في صلاحيات Admin API اختار read_orders و read_inventory، وبعدين ثبّت التطبيق.",
-    "انسخ Admin API access token (بيبدأ بـ shpat_).",
-    "ابعتلي في الشات إنك عايز تضيف مفاتيح شوبيفاي، وهيظهرلك نموذج آمن تحط فيه: SHOPIFY_ADMIN_TOKEN (التوكن)، SHOPIFY_STORE_DOMAIN (زي mystore.myshopify.com)، و SHOPIFY_WEBHOOK_SECRET.",
-    "في شوبيفاي: الإعدادات ← الإشعارات ← Webhooks، أضف webhook لحدث Order creation وواحد لـ Order cancellation، بصيغة JSON، والرابط هو الرابط اللي فوق.",
-    "انسخ مفتاح التوقيع اللي شوبيفاي بيعرضه تحت الـ webhooks وحطه في SHOPIFY_WEBHOOK_SECRET.",
-    "اعمل طلب تجريبي، وهيظهر في صفحة الطلبات بحالة «جديد».",
+    "افتح تطبيق Store Accounting Sync في Shopify Dev Dashboard، وثبّته على متجرك من نفس المؤسسة.",
+    "فعّل صلاحيات قراءة الطلبات والمنتجات والمخزون: read_orders وread_products وread_inventory.",
+    "من إعدادات التطبيق على Vercel أضف Client ID وClient Secret ودومين المتجر. احتفظ بالمفاتيح السرية في متغيرات السيرفر، ولا ترسلها في الشات.",
+    "التطبيق يجدد توكن Shopify تلقائيًا. لا تحتاج إلى نسخ توكن جديد كل يوم.",
+    "أضف اشتراكين للـ Webhooks: orders/create وorders/cancelled، بصيغة JSON، باستخدام الرابط أعلاه.",
+    "لو أضفت Webhooks من إعدادات الإشعارات في المتجر، استخدم مفتاح توقيع الإشعارات. اشتراكات التطبيق تستخدم Client Secret للتوقيع.",
+    "بعد اكتمال الإعداد اختبر وصول طلب وحالة الإلغاء. التكلفة غير المتاحة تظهر للمراجعة ولا تعتبر تكلفة مؤكدة.",
+
   ];
 
   return (
