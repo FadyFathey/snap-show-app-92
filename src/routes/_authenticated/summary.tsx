@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YearPicker } from "@/components/MonthPicker";
-import { STATUS_LABEL, fmtNum, stats, useMonth, useYear, yearly } from "@/lib/pl";
+import { STATUS_LABEL, fmtNum, stats, useMonth, useYear, yearly, returnNetLoss } from "@/lib/pl";
 
 export const Route = createFileRoute("/_authenticated/summary")({
   head: () => ({
@@ -37,15 +37,15 @@ function SummaryPage() {
       const s1 = XLSX.utils.aoa_to_sheet([head, ...rows.map((r) => line(r.name, r)), line("الإجمالي", total)]);
       const s2 = XLSX.utils.aoa_to_sheet([
         ["التاريخ", "رقم الطلب", "الحالة", "إجمالي السعر", "التكلفة", "الربح"],
-        ...data.orders.map((o) => [o.order_date, o.order_number, STATUS_LABEL[o.status], o.total_price, o.cost, o.total_price - o.cost]),
+        ...data.orders.map((o) => [o.order_date, o.order_number, STATUS_LABEL[o.status], o.total_price, o.cost, o.status === "returned" ? o.return_balance ?? 0 : o.status === "cancelled" ? 0 : o.total_price - o.cost]),
       ]);
       const s3 = XLSX.utils.aoa_to_sheet([
         ["التاريخ", "البند", "المبلغ", "ملاحظات"],
         ...data.expenses.map((e) => [e.expense_date, e.category, e.amount, e.notes ?? ""]),
       ]);
       const s4 = XLSX.utils.aoa_to_sheet([
-        ["رقم الطلب", "تاريخ الطلب", "تاريخ المرتجع", "السبب", "خسارة الشحن", "خسارة المنتج", "إجمالي الخسارة"],
-        ...data.returns.map((r) => [r.order_number, r.order_date, r.return_date, r.reason, r.shipping_loss, r.product_loss, r.shipping_loss + r.product_loss]),
+        ["رقم الطلب", "تاريخ الطلب", "تاريخ المرتجع", "السبب", "خصم شركة الشحن", "تحصيل الشحن", "خسارة المنتج", "صافي الخسارة"],
+        ...data.returns.map((r) => [r.order_number, r.order_date, r.return_date, r.reason, r.shipping_loss, r.shipping_collected, r.product_loss, returnNetLoss(r)]),
       ]);
       const wb = XLSX.utils.book_new();
       wb.Workbook = { Views: [{ RTL: true }] };

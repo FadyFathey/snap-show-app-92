@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthPicker } from "@/components/MonthPicker";
-import { type Return, fmt, fmtNum, useMonth, useReturns } from "@/lib/pl";
+import { type Return, fmt, fmtNum, useMonth, useReturns, returnNetLoss } from "@/lib/pl";
 
 export const Route = createFileRoute("/_authenticated/returns")({
   head: () => ({
@@ -25,6 +25,8 @@ function ReturnsPage() {
   const { data = [], isLoading } = useReturns(ym);
   const qc = useQueryClient();
   const ship = data.reduce((s, r) => s + r.shipping_loss, 0);
+  const collected = data.reduce((s, r) => s + r.shipping_collected, 0);
+  const netLoss = data.reduce((s, r) => s + returnNetLoss(r), 0);
   const prod = data.reduce((s, r) => s + r.product_loss, 0);
 
   async function undo(r: Return) {
@@ -40,9 +42,10 @@ function ReturnsPage() {
       <MonthPicker />
       <div className="grid grid-cols-2 gap-3">
         <Box label="عدد المرتجعات" value={fmtNum(data.length)} />
-        <Box label="إجمالي الخسارة" value={fmt(ship + prod)} strong />
-        <Box label="خسارة الشحن" value={fmt(ship)} />
+        <Box label="صافي خسائر المرتجعات" value={fmt(netLoss)} strong />
+        <Box label="خصم شركة الشحن" value={fmt(ship)} />
         <Box label="خسارة المنتجات" value={fmt(prod)} />
+        <Box label="تحصيل شحن المرتجعات" value={fmt(collected)} />
       </div>
       <div className="space-y-2">
         {isLoading && <p className="text-center text-sm text-muted-foreground">جاري التحميل…</p>}
@@ -55,12 +58,12 @@ function ReturnsPage() {
                 <span className="text-xs text-muted-foreground num">{r.return_date}</span>
                 {r.restocked && <span className="rounded-full bg-profit-soft px-2 py-0.5 text-xs text-profit">رجع المخزن</span>}
               </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">{r.reason}{r.notes ? ` · ${r.notes}` : ""}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{r.shipping_collected === 100 ? "تم تحصيل الشحن — 100 جنيه" : "لم يتم التحصيل"} · {r.reason}{r.notes ? ` · ${r.notes}` : ""}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">
-                شحن <span className="num">{fmt(r.shipping_loss)}</span> · منتج <span className="num">{fmt(r.product_loss)}</span>
+                خصم الشحن <span className="num">{fmt(r.shipping_loss)}</span> · منتج <span className="num">{fmt(r.product_loss)}</span>
               </div>
             </div>
-            <div className="text-sm font-bold text-loss num">{fmt(r.shipping_loss + r.product_loss)}</div>
+            <div className={`text-sm font-bold num ${returnNetLoss(r) > 0 ? "text-loss" : "text-profit"}`}>{fmt(-returnNetLoss(r))}</div>
             <button onClick={() => undo(r)} className="rounded-lg p-2 hover:bg-muted" aria-label="إلغاء المرتجع"><Undo2 className="h-4 w-4" /></button>
           </div>
         ))}
