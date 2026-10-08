@@ -16,6 +16,8 @@ export type Order = {
   source: string;
   cost_missing: boolean;
   created_at: string;
+  return_balance?: number;
+  shipping_collected?: number;
 };
 export type Expense = {
   id: string;
@@ -31,11 +33,15 @@ export type Return = {
   reason: string;
   notes: string | null;
   shipping_loss: number;
+  shipping_collected: number;
   product_loss: number;
   restocked: boolean;
   order_number: string;
   order_date: string;
 };
+export const returnNetLoss = (r: Pick<Return, "shipping_loss" | "product_loss" | "shipping_collected">) =>
+  r.shipping_loss + r.product_loss - (r.shipping_collected ?? 0);
+
 export const RETURN_REASONS = ["العميل رفض الاستلام", "منتج معيب", "مقاس/لون غلط", "العميل غير متاح", "أخرى"];
 
 export const CATEGORIES = ["إعلانات", "شحن", "إيجار", "مرتبات", "اشتراكات", "أخرى"];
@@ -73,13 +79,19 @@ export const useMonth = () => useContext(MonthCtx);
 async function fetchOrders(from: string, to: string): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
-    .select("id, order_date, order_number, total_price, cost, status, source, cost_missing, created_at")
+    .select("id, order_date, order_number, total_price, cost, status, source, cost_missing, created_at, returns(shipping_loss, product_loss, shipping_collected)")
     .gte("order_date", from)
     .lt("order_date", to)
     .order("order_date", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((o) => ({ ...o, status: o.status as OrderStatus, total_price: Number(o.total_price), cost: Number(o.cost) }));
+  return (data ?? []).map((o) => {
+    const r = o.returns;
+    return { ...o, status: o.status as OrderStatus, total_price: Number(o.total_price), cost: Number(o.cost),
+      return_balance: r ? Number(r.shipping_collected) - Number(r.shipping_loss) - Number(r.product_loss) : 0,
+      shipping_collected: r ? Number(r.shipping_collected) : 0,
+    };
+  });
 }
 async function fetchExpenses(from: string, to: string): Promise<Expense[]> {
   const { data, error } = await supabase
@@ -95,7 +107,7 @@ async function fetchExpenses(from: string, to: string): Promise<Expense[]> {
 async function fetchReturns(from: string, to: string): Promise<Return[]> {
   const { data, error } = await supabase
     .from("returns")
-    .select("id, order_id, return_date, reason, notes, shipping_loss, product_loss, restocked, orders(order_number, order_date)")
+    .select("id, order_id, return_date, reason, notes, shipping_loss, shipping_collected, product_loss, restocked, orders(order_number, order_date)")
     .gte("return_date", from)
     .lt("return_date", to)
     .order("return_date", { ascending: false });
@@ -104,7 +116,7 @@ async function fetchReturns(from: string, to: string): Promise<Return[]> {
     const o = r.orders as { order_number: string; order_date: string } | null;
     return {
       id: r.id, order_id: r.order_id, return_date: r.return_date, reason: r.reason, notes: r.notes, restocked: r.restocked,
-      shipping_loss: Number(r.shipping_loss), product_loss: Number(r.product_loss),
+      shipping_loss: Number(r.shipping_loss), shipping_collected: Number(r.shipping_collected), product_loss: Number(r.product_loss),
       order_number: o?.order_number ?? "", order_date: o?.order_date ?? "",
     };
   });
@@ -148,7 +160,7 @@ export function stats(orders: Order[], expenses: Expense[], returns: Return[] = 
   const sales = shipped.reduce((s, o) => s + o.total_price, 0);
   const cost = shipped.reduce((s, o) => s + o.cost, 0);
   const exp = expenses.reduce((s, e) => s + e.amount, 0);
-  const returnLoss = returns.reduce((s, r) => s + r.shipping_loss + r.product_loss, 0);
+  const returnLoss = returns.reduce((s, r) => s + returnNetLoss(r), 0);
   const gross = sales - cost;
   const denom = shipped.length + returnedOrders;
   return {
