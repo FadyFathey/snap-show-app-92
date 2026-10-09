@@ -4,10 +4,17 @@ import { useState } from "react";
 import { BarChart3, LayoutDashboard, LogOut, Receipt, ShoppingBag, Store, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthCtx, currentYm } from "@/lib/pl";
+import { recoveryState } from "@/lib/auth";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
+    // Supabase can fall back to Site URL when a redirect is not allowlisted.
+    // Preserve recovery tokens until /auth lets the SDK consume them.
+    const recovery = recoveryState(window.location.search, window.location.hash);
+    if (recovery.requested || recovery.invalid) {
+      throw redirect({ to: "/auth", search: recovery.invalid ? { recovery: "1", error_code: "otp_expired" } : { recovery: "1" }, hash: window.location.hash.slice(1), replace: true });
+    }
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
     return { user: data.user };
