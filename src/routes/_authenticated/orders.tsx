@@ -45,6 +45,7 @@ function OrdersPage() {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [returning, setReturning] = useState<Order | null>(null);
+  const [returnCollected, setReturnCollected] = useState(false);
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
 
   const refresh = () => {
@@ -147,7 +148,7 @@ function OrdersPage() {
         {isLoading && <p className="text-center text-sm text-muted-foreground">جاري التحميل…</p>}
         {!isLoading && list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">مفيش طلبات</p>}
         {list.map((o) => {
-          const profit = o.total_price - o.cost;
+          const profit = o.status === "returned" ? o.return_balance ?? 0 : o.status === "cancelled" ? 0 : o.total_price - o.cost;
           return (
             <div key={o.id} className="space-y-3 rounded-2xl border bg-card p-3">
               <div className="flex items-center gap-3">
@@ -166,7 +167,8 @@ function OrdersPage() {
                 <button onClick={() => edit(o)} className="rounded-lg p-2 hover:bg-muted" aria-label="تعديل"><Pencil className="h-4 w-4" /></button>
                 <button onClick={() => remove(o)} className="rounded-lg p-2 text-loss hover:bg-loss-soft" aria-label="حذف"><Trash2 className="h-4 w-4" /></button>
               </div>
-              {o.cost_missing && (
+              {o.status === "returned" && <p className="text-sm text-muted-foreground">{o.shipping_collected === 100 ? "مرتجع — تم تحصيل الشحن (100 جنيه)" : "مرتجع — لم يتم التحصيل"} · صافي المرتجع {fmt(profit)}</p>}
+              {o.cost_missing && o.status !== "returned" && o.status !== "cancelled" && (
                 <div className="flex items-center gap-2 rounded-xl bg-warn-soft p-2">
                   <span className="shrink-0 rounded-full bg-warn px-2 py-0.5 text-xs font-bold text-warn-foreground">التكلفة ناقصة</span>
                   <Input type="number" inputMode="decimal" min={0} step="any" placeholder="التكلفة" className="h-9"
@@ -175,20 +177,23 @@ function OrdersPage() {
                 </div>
               )}
               {o.status === "new" && (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Button className="h-11 bg-profit text-profit-foreground hover:bg-profit/90" onClick={() => setStatus(o, "shipped")}>طلع</Button>
-                  <Button className="h-11 bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => setReturning(o)}>مرتجع</Button>
+                  <Button className="h-auto min-h-11 whitespace-normal bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => { setReturnCollected(false); setReturning(o); }}>مرتجع — لم يتم التحصيل</Button>
                   <Button className="h-11 bg-loss text-loss-foreground hover:bg-loss/90" onClick={() => setStatus(o, "cancelled")}>ملغي</Button>
                 </div>
               )}
+              {(o.status === "new" || o.status === "shipped") && (
+                <Button className="h-auto min-h-11 w-full whitespace-normal bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => { setReturnCollected(true); setReturning(o); }}>مرتجع — تم تحصيل الشحن (100 جنيه)</Button>
+              )}
               {o.status === "shipped" && (
-                <Button className="h-11 w-full bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => setReturning(o)}>مرتجع</Button>
+                <Button className="h-auto min-h-11 w-full whitespace-normal bg-warn text-warn-foreground hover:bg-warn/90" onClick={() => { setReturnCollected(false); setReturning(o); }}>مرتجع — لم يتم التحصيل</Button>
               )}
             </div>
           );
         })}
       </div>
-      <ReturnSheet order={returning} onClose={() => setReturning(null)} onDone={refresh} />
+      <ReturnSheet order={returning} collected={returnCollected} onClose={() => setReturning(null)} onDone={refresh} />
     </div>
   );
 }

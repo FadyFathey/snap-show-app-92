@@ -97,6 +97,7 @@ export type Database = {
           reason: string
           restocked: boolean
           return_date: string
+          shipping_collected: number
           shipping_loss: number
         }
         Insert: {
@@ -109,6 +110,7 @@ export type Database = {
           reason: string
           restocked?: boolean
           return_date?: string
+          shipping_collected?: number
           shipping_loss?: number
         }
         Update: {
@@ -121,6 +123,7 @@ export type Database = {
           reason?: string
           restocked?: boolean
           return_date?: string
+          shipping_collected?: number
           shipping_loss?: number
         }
         Relationships: [
@@ -147,6 +150,19 @@ export type Database = {
           _restocked: boolean
           _return_date: string
           _shipping_loss: number
+        }
+        Returns: undefined
+      }
+      mark_returned_collection: {
+        Args: {
+          _order_id: string
+          _return_date: string
+          _reason: string
+          _notes: string
+          _shipping_loss: number
+          _product_loss: number
+          _restocked: boolean
+          _shipping_collected: number
         }
         Returns: undefined
       }
