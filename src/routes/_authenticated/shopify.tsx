@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { checkShopifyConnection } from "@/lib/shopify-health.functions";
 
 export const Route = createFileRoute("/_authenticated/shopify")({
   head: () => ({
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/_authenticated/shopify")({
 
 function ShopifyPage() {
   const [url, setUrl] = useState("");
+  const connection = useQuery({ queryKey: ["shopify-connection"], queryFn: () => checkShopifyConnection(), retry: false });
   useEffect(() => {
     setUrl(`${window.location.origin}/api/public/shopify-webhook`);
   }, []);
@@ -47,6 +49,14 @@ function ShopifyPage() {
   return (
     <div className="space-y-4 px-5">
       <h1 className="text-xl font-bold">ربط شوبيفاي</h1>
+      <div className="space-y-2 rounded-2xl border bg-card p-4">
+        <div className="text-sm font-semibold">حالة الاتصال</div>
+        {connection.isPending ? <p className="text-sm">جاري فحص الاتصال…</p> : connection.isError ? <p role="alert" className="text-sm text-destructive">تعذر فحص الاتصال، أعد المحاولة.</p> : <>
+          <p className="text-sm">شوبيفاي: {connection.data.shopifyReady ? "قراءة الطلبات شغالة" : connection.data.shopifyError}</p>
+          <p className="text-sm">استقبال الطلبات: {connection.data.databaseReady ? "اتصال قاعدة البيانات شغال" : connection.data.databaseError}</p>
+        </>}
+        <Button variant="outline" disabled={connection.isFetching} onClick={() => connection.refetch()}>فحص الاتصال</Button>
+      </div>
       <div className="space-y-2 rounded-2xl border bg-card p-4">
         <div className="text-sm font-semibold">رابط الـ Webhook</div>
         <div dir="ltr" className="break-all rounded-xl bg-muted p-3 text-xs">{url}</div>

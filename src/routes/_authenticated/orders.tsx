@@ -37,7 +37,7 @@ const empty = () => ({ order_date: today(), order_number: "", total_price: "", c
 
 function OrdersPage() {
   const { ym } = useMonth();
-  const { data = [], isLoading } = useOrders(ym);
+  const { data = [], isLoading, isError, refetch } = useOrders(ym);
   const qc = useQueryClient();
   const [form, setForm] = useState(empty());
   const [editId, setEditId] = useState<string | null>(null);
@@ -109,6 +109,7 @@ function OrdersPage() {
 
   return (
     <div className="space-y-4 px-5">
+      {isError && <div role="alert" className="space-y-2 rounded-2xl border border-destructive p-4"><p>تعذر تحميل الطلبات. أعد المحاولة، ولو المشكلة مستمرة راجع اتصال قاعدة البيانات.</p><Button variant="outline" onClick={() => refetch()}>إعادة المحاولة</Button></div>}
       <div className="flex items-center justify-between rounded-2xl bg-warn-soft px-4 py-3">
         <span className="font-semibold">أوردرات مستنية</span>
         <span className="text-2xl font-extrabold text-warn num">{waiting}</span>
@@ -146,7 +147,7 @@ function OrdersPage() {
 
       <div className="space-y-2">
         {isLoading && <p className="text-center text-sm text-muted-foreground">جاري التحميل…</p>}
-        {!isLoading && list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">مفيش طلبات</p>}
+        {!isLoading && !isError && list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">مفيش طلبات</p>}
         {list.map((o) => {
           const profit = o.status === "returned" ? o.return_balance ?? 0 : o.status === "cancelled" ? 0 : o.total_price - o.cost;
           return (
