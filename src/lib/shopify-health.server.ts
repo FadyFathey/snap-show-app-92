@@ -1,12 +1,10 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { ingestShopifyOrder } from "./shopify-ingest.server";
 
 export async function inspectShopifyConnection() {
   let databaseReady = false;
   let databaseError = "";
   try {
-    const { error } = await supabaseAdmin.from("orders").select("id").limit(1);
-    databaseReady = !error;
-    if (error) databaseError = `تعذر اتصال استقبال الطلبات بقاعدة البيانات (${error.code ?? "unknown"}). راجع مفتاح السيرفر.`;
+    databaseReady = await ingestShopifyOrder("check") === "ok";
   } catch {
     databaseError = "إعدادات قاعدة البيانات الخاصة باستقبال الطلبات غير مكتملة.";
   }
@@ -43,5 +41,6 @@ export async function inspectShopifyConnection() {
   } catch (error) {
     shopifyError = error instanceof Error && error.name !== "TimeoutError" ? error.message : "انتهت مهلة الاتصال بشوبيفاي، أعد الفحص.";
   }
-  return { databaseReady, databaseError, shopifyReady, shopifyError, appWebhooks };
+  const webhooksReady = ["ORDERS_CREATE", "ORDERS_CANCELLED"].every((topic) => appWebhooks.some((item) => item.topic === topic && item.uri === "https://snap-show-app-92.vercel.app/api/public/shopify-webhook"));
+  return { databaseReady, databaseError, shopifyReady, shopifyError, appWebhooks, webhooksReady };
 }

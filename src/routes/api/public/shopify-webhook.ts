@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
 import { z } from "zod";
 
 const OrderPayload = z.object({
@@ -87,14 +86,12 @@ export const Route = createFileRoute("/api/public/shopify-webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env["SHOPIFY_WEBHOOK_SECRET"] ?? process.env["SHOPIFY_CLIENT_SECRET"];
-        if (!secret) return new Response("Not configured", { status: 500 });
+        const secrets = [process.env["SHOPIFY_WEBHOOK_SECRET"], process.env["SHOPIFY_CLIENT_SECRET"]];
+        if (!secrets.some(Boolean)) return new Response("Not configured", { status: 500 });
+        const { validShopifySignature, ingestShopifyOrder } = await import("@/lib/shopify-ingest.server");
         const body = Buffer.from(await request.arrayBuffer());
         const sig = request.headers.get("x-shopify-hmac-sha256") ?? "";
-        const expected = createHmac("sha256", secret).update(body).digest("base64");
-        const a = Buffer.from(sig);
-        const b = Buffer.from(expected);
-        if (a.length !== b.length || !timingSafeEqual(a, b)) return new Response("Invalid signature", { status: 401 });
+        if (!validShopifySignature(body, sig, secrets)) return new Response("Invalid signature", { status: 401 });
 
         let host: string;
         try { host = storeHost(); } catch { return new Response("Not configured", { status: 500 }); }
@@ -107,35 +104,29 @@ export const Route = createFileRoute("/api/public/shopify-webhook")({
           return new Response("Bad payload", { status: 400 });
         }
         const shopifyId = String(parsed.id);
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
         if (topic === "orders/create") {
-          const { data: existing, error: lookupError } = await supabaseAdmin.from("orders").select("id").eq("shopify_order_id", shopifyId).maybeSingle();
-          if (lookupError) return new Response("db error", { status: 500 });
-          if (existing) return new Response("duplicate ignored");
           const { cost, missing } = await computeCost(parsed.line_items ?? []);
-          const date = (parsed.created_at ?? new Date().toISOString()).slice(0, 10);
-          const { error } = await supabaseAdmin.from("orders").insert({
-            order_date: date,
-            order_number: parsed.name ?? `#${parsed.order_number ?? shopifyId}`,
-            total_price: Number(parsed.total_price ?? 0),
-            cost,
-            cost_missing: missing,
-            status: "new",
-            shopify_order_id: shopifyId,
-            source: "shopify",
-            user_id: null,
-          });
-          if (error && error.code !== "23505") {
-            console.error(error);
+          const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(parsed.created_at ?? Date.now()));
+          try {
+            const result = await ingestShopifyOrder("create", {
+              order_date: date,
+              order_number: parsed.name ?? `#${parsed.order_number ?? shopifyId}`,
+              total_price: Number(parsed.total_price ?? 0),
+              cost,
+              cost_missing: missing,
+              shopify_order_id: shopifyId,
+            });
+            return new Response(result);
+          } catch {
+            console.error("Shopify order ingestion unavailable");
             return new Response("db error", { status: 500 });
           }
-          return new Response("ok");
         }
         if (topic === "orders/cancelled") {
-          const { error } = await supabaseAdmin.from("orders").update({ status: "cancelled" }).eq("shopify_order_id", shopifyId);
-          if (error) return new Response("db error", { status: 500 });
-          return new Response("ok");
+          try {
+            await ingestShopifyOrder("cancel", { shopify_order_id: shopifyId });
+            return new Response("ok");
+          } catch { return new Response("db error", { status: 500 }); }
         }
         return new Response("ignored");
       },

@@ -54,6 +54,7 @@ function ShopifyPage() {
         {connection.isPending ? <p className="text-sm">جاري فحص الاتصال…</p> : connection.isError ? <p role="alert" className="text-sm text-destructive">تعذر فحص الاتصال، أعد المحاولة.</p> : <>
           <p className="text-sm">شوبيفاي: {connection.data.shopifyReady ? "قراءة الطلبات شغالة" : connection.data.shopifyError}</p>
           <p className="text-sm">استقبال الطلبات: {connection.data.databaseReady ? "اتصال قاعدة البيانات شغال" : connection.data.databaseError}</p>
+          <p className="text-sm">إشعارات الطلبات: {connection.data.webhooksReady ? "الطلبات الجديدة والإلغاء مفعّلين" : "محتاجة ضبط"}</p>
         </>}
         <Button variant="outline" disabled={connection.isFetching} onClick={() => connection.refetch()}>فحص الاتصال</Button>
       </div>
